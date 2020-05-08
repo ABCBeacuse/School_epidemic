@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.mapper.TrailMapper">
+    <select id="selectTrack" parameterType="com.example.pojo.Trail" resultType="com.example.pojo.Trail">
+        select student_no as studentNo, student_name as studentName,building_name as buildingName,school_zone as schoolZone,longitude,latitude,in_time as inTime,out_time as outTime
+        from network_trail
+        where student_no = #{studentNo}
+        order by id ASC
+    </select>
+
+    <select id="queryLimitTime" parameterType="com.example.pojo.LimitTime" resultType="com.example.pojo.Trail">
+        select student_no as studentNo, student_name as studentName,building_name as buildingName,school_zone as schoolZone,longitude,latitude,in_time as inTime,out_time as outTime
+        from network_trail
+        <where>
+            <if test="studentNo != null and startTime != null and stopTime != null">
+              student_no = #{studentNo} and in_time &gt;= CONCAT(#{startTime},' 00:00:00') and in_time &lt;= CONCAT(#{stopTime},' 23:59:59')
+            </if>
+        </where>
+        ORDER BY in_time ASC
+    </select>
+
+
+    <select id="countResult" resultType="java.lang.Integer" parameterType="com.example.pojo.LimitTime">
+        select count(*)
+        from network_trail
+        <where>
+            <if test="startTime != null">
+                and in_time &gt;= CONCAT(#{startTime},' 00:00:00')
+            </if>
+            <if test="stopTime != null">
+                and in_time &lt;= CONCAT(#{stopTime},' 23:59:59')
+            </if>
+        </where>
+    </select>
+
+    <select id="findByPage" resultType="com.example.pojo.Trail">
+        select student_no as studentNo,longitude,latitude,in_time as inTime,out_time as outTime
+        from network_trail
+        <where>
+            <if test="limitTime.startTime != null">
+                and in_time &gt;= CONCAT(#{limitTime.startTime},' 00:00:00')
+            </if>
+            <if test="limitTime.stopTime != null">
+                and in_time &lt;= CONCAT(#{limitTime.stopTime},' 23:59:59')
+            </if>
+        </where>
+        limit #{offset},#{pageSize}
+    </select>
+
+    <select id="countStudentNumByBuilding" parameterType="com.example.pojo.LimitTime" resultType="com.example.pojo.CountStudentNum">
+        SELECT building_name as buildingName,longitude,latitude,COUNT(id) as studentNum
+        FROM network_trail
+        <where>
+            <if test="startTime != null">
+                and in_time &gt;= CONCAT(#{startTime},' 00:00:00')
+            </if>
+            <if test="stopTime != null">
+                and in_time &lt;= CONCAT(#{stopTime},' 23:59:59')
+            </if>
+        </where>
+        and UNIX_TIMESTAMP(out_time)-UNIX_TIMESTAMP(in_time)>60
+        GROUP BY building_name
+        ORDER BY building_name
+    </select>
+
+    <select id="trackingQuery" parameterType="com.example.pojo.LimitTime" resultType="com.example.pojo.Trail">
+        SELECT d.student_no as studentNo,d.student_name as studentName,d.building_name as buildingName,d.school_zone as schoolZone,d.in_time as inTime,d.out_time as outTime FROM network_trail d ,
+        (SELECT b.building_name,b.in_time,b.out_time FROM
+          (SELECT a.building_name,a.in_time,a.out_time
+            FROM network_trail a
+            WHERE a.student_no = #{studentNo}
+            AND (UNIX_TIMESTAMP(CONCAT(#{stopTime},' 00:00:00'))-UNIX_TIMESTAMP(a.in_time))&lt;= 1209600
+            AND (UNIX_TIMESTAMP(CONCAT(#{stopTime},' 00:00:00'))-UNIX_TIMESTAMP(a.in_time))&gt; 0
+          )b
+         WHERE UNIX_TIMESTAMP(b.out_time)-UNIX_TIMESTAMP(b.in_time) &gt; 60
+        )c
+
+        WHERE d.building_name = c.building_name
+        AND d.student_no != #{studentNo}
+        AND UNIX_TIMESTAMP(d.out_time)-UNIX_TIMESTAMP(d.in_time) &gt; 60
+        AND not (d.in_time &gt; c.out_time or d.out_time &lt; c.in_time)
+        GROUP BY d.student_no
+    </select>
+</mapper>
